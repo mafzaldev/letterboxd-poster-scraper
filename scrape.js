@@ -8,7 +8,7 @@ function sanitizeFilename(name) {
   return name.replace(/[^a-z0-9\s-]/gi, "").trim();
 }
 
-async function downloadPoster(url, filename) {
+async function downloadPoster(url, filename, workerId) {
   try {
     const downloadsDir = path.resolve(__dirname, "downloads");
     if (!fs.existsSync(downloadsDir)) {
@@ -17,11 +17,13 @@ async function downloadPoster(url, filename) {
 
     const imagePath = path.resolve(downloadsDir, filename);
     if (fs.existsSync(imagePath)) {
-      console.log(`File ${filename} already exists. Skipping.`);
+      console.log(
+        `[Worker ${workerId}] File ${filename} already exists. Skipping.`
+      );
       return;
     }
 
-    console.log(`Processing: ${filename} (${url})`);
+    console.log(`[Worker ${workerId}] Processing: ${filename} (${url})`);
 
     const response = await axios.get(url, {
       headers: {
@@ -36,7 +38,9 @@ async function downloadPoster(url, filename) {
     const jsonLdScript = $('script[type="application/ld+json"]');
 
     if (jsonLdScript.length === 0) {
-      console.error(`Could not find the JSON-LD script on the page for ${url}`);
+      console.error(
+        `[Worker ${workerId}] Could not find the JSON-LD script on the page for ${url}`
+      );
       return;
     }
 
@@ -51,14 +55,19 @@ async function downloadPoster(url, filename) {
     try {
       jsonData = JSON.parse(jsonContent);
     } catch (e) {
-      console.error(`Failed to parse JSON-LD content for ${url}:`, e.message);
+      console.error(
+        `[Worker ${workerId}] Failed to parse JSON-LD content for ${url}:`,
+        e.message
+      );
       return;
     }
 
     const imgSrc = jsonData.image;
 
     if (!imgSrc) {
-      console.error(`JSON-LD found, but no image property for ${url}`);
+      console.error(
+        `[Worker ${workerId}] JSON-LD found, but no image property for ${url}`
+      );
       return;
     }
 
@@ -73,13 +82,18 @@ async function downloadPoster(url, filename) {
 
     return new Promise((resolve, reject) => {
       writer.on("finish", () => {
-        console.log(`Image successfully downloaded to ${imagePath}`);
+        console.log(
+          `[Worker ${workerId}] Image successfully downloaded to ${imagePath}`
+        );
         resolve();
       });
       writer.on("error", reject);
     });
   } catch (error) {
-    console.error(`Error occurred for ${url}:`, error.message);
+    console.error(
+      `[Worker ${workerId}] Error occurred for ${url}:`,
+      error.message
+    );
   }
 }
 
@@ -103,7 +117,7 @@ async function processCsv() {
     .on("end", async () => {
       console.log(`Found ${results.length} items in CSV.`);
 
-      const CONCURRENCY_LIMIT = 5;
+      const CONCURRENCY_LIMIT = 10;
       const queue = [...results];
       const activeWorkers = [];
       let completed = 0;
@@ -118,10 +132,8 @@ async function processCsv() {
           if (name && uri) {
             const safeName = sanitizeFilename(`${name}-${year}`);
             const filename = `${safeName}.jpg`;
-            console.log(`[Worker ${id}] Processing: ${filename}`);
-            await downloadPoster(uri, filename);
-            // Add a small delay to be polite
-            await new Promise((resolve) => setTimeout(resolve, 1000));
+            await downloadPoster(uri, filename, id);
+            await new Promise((resolve) => setTimeout(resolve, 2000));
           }
           completed++;
           console.log(
