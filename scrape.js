@@ -103,18 +103,39 @@ async function processCsv() {
     .on("end", async () => {
       console.log(`Found ${results.length} items in CSV.`);
 
-      for (const row of results) {
-        const name = row["Name"];
-        const year = row["Year"];
-        const uri = row["Letterboxd URI"];
+      const CONCURRENCY_LIMIT = 5;
+      const queue = [...results];
+      const activeWorkers = [];
+      let completed = 0;
 
-        if (name && uri) {
-          const safeName = sanitizeFilename(`${name}-${year}`);
-          const filename = `${safeName}.jpg`;
-          await downloadPoster(uri, filename);
-          await new Promise((resolve) => setTimeout(resolve, 1000));
+      async function worker(id) {
+        while (queue.length > 0) {
+          const row = queue.shift();
+          const name = row["Name"];
+          const year = row["Year"];
+          const uri = row["Letterboxd URI"];
+
+          if (name && uri) {
+            const safeName = sanitizeFilename(`${name}-${year}`);
+            const filename = `${safeName}.jpg`;
+            console.log(`[Worker ${id}] Processing: ${filename}`);
+            await downloadPoster(uri, filename);
+            // Add a small delay to be polite
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+          }
+          completed++;
+          console.log(
+            `[Worker ${id}] Remaining: ${results.length - completed}`
+          );
         }
       }
+
+      for (let i = 0; i < CONCURRENCY_LIMIT; i++) {
+        activeWorkers.push(worker(i + 1));
+      }
+
+      await Promise.all(activeWorkers);
+
       console.log("All downloads completed.");
       console.timeEnd("Total Download Time");
     });
