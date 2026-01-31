@@ -4,26 +4,9 @@ const fs = require("fs");
 const path = require("path");
 const csv = require("csv-parser");
 
-function sanitizeFilename(name) {
-  return name.replace(/[^a-z0-9\s-]/gi, "").trim();
-}
-
-async function downloadPoster(url, filename, workerId) {
+async function downloadPoster(id, name, year, url, workerId) {
   try {
-    const downloadsDir = path.resolve(__dirname, "downloads");
-    if (!fs.existsSync(downloadsDir)) {
-      fs.mkdirSync(downloadsDir);
-    }
-
-    const imagePath = path.resolve(downloadsDir, filename);
-    if (fs.existsSync(imagePath)) {
-      console.log(
-        `[Worker ${workerId}] File ${filename} already exists. Skipping.`
-      );
-      return;
-    }
-
-    console.log(`[Worker ${workerId}] Processing: ${filename} (${url})`);
+    console.log(`[Worker ${workerId}] Processing: ${name} (${id})`);
 
     const response = await axios.get(url, {
       headers: {
@@ -39,7 +22,7 @@ async function downloadPoster(url, filename, workerId) {
 
     if (jsonLdScript.length === 0) {
       console.error(
-        `[Worker ${workerId}] Could not find the JSON-LD script on the page for ${url}`
+        `[Worker ${workerId}] Could not find the JSON-LD script on the page for ${id}`,
       );
       return;
     }
@@ -56,8 +39,8 @@ async function downloadPoster(url, filename, workerId) {
       jsonData = JSON.parse(jsonContent);
     } catch (e) {
       console.error(
-        `[Worker ${workerId}] Failed to parse JSON-LD content for ${url}:`,
-        e.message
+        `[Worker ${workerId}] Failed to parse JSON-LD content for ${id}:`,
+        e.message,
       );
       return;
     }
@@ -66,35 +49,27 @@ async function downloadPoster(url, filename, workerId) {
 
     if (!imgSrc) {
       console.error(
-        `[Worker ${workerId}] JSON-LD found, but no image property for ${url}`
+        `[Worker ${workerId}] JSON-LD found, but no image property for ${id}`,
       );
       return;
     }
 
-    const writer = fs.createWriteStream(imagePath);
-    const imageResponse = await axios({
-      url: imgSrc,
-      method: "GET",
-      responseType: "stream",
-    });
-
-    imageResponse.data.pipe(writer);
-
-    return new Promise((resolve, reject) => {
-      writer.on("finish", () => {
-        console.log(
-          `[Worker ${workerId}] Image successfully downloaded to ${imagePath}`
-        );
-        resolve();
-      });
-      writer.on("error", reject);
-    });
+    storePosterInfo(id, name, year, imgSrc);
   } catch (error) {
     console.error(
-      `[Worker ${workerId}] Error occurred for ${url}:`,
-      error.message
+      `[Worker ${workerId}] Error occurred for ${id}:`,
+      error.message,
     );
   }
+}
+
+function storePosterInfo(id, name, year, imageUrl) {
+  const postersPath = path.resolve(__dirname, "posters.csv");
+  const csvLine = `"${id}","${name.replace(/"/g, '""')}","${year}","${imageUrl}"\n`;
+  if (!fs.existsSync(postersPath)) {
+    fs.writeFileSync(postersPath, "id,name,year,image_url\n");
+  }
+  fs.appendFileSync(postersPath, csvLine);
 }
 
 async function processCsv() {
@@ -115,14 +90,13 @@ async function processCsv() {
     .pipe(csv())
     .on("data", (data) => results.push(data))
     .on("end", async () => {
-      console.log(`Found ${results.length} items in CSV.`);
+      console.log(`Found ${results.length} items in ${csvFile}.`);
 
       const CONCURRENCY_LIMIT = 10;
       const queue = [...results];
       const activeWorkers = [];
-      let completed = 0;
 
-      async function worker(id) {
+      async function worker(workerId) {
         while (queue.length > 0) {
           const row = queue.shift();
           const name = row["Name"];
@@ -130,15 +104,10 @@ async function processCsv() {
           const uri = row["Letterboxd URI"];
 
           if (name && uri) {
-            const safeName = sanitizeFilename(`${name}-${year}`);
-            const filename = `${safeName}.jpg`;
-            await downloadPoster(uri, filename, id);
+            const id = uri.split("/").pop();
+            await downloadPoster(id, name, year, uri, workerId);
             await new Promise((resolve) => setTimeout(resolve, 2000));
           }
-          completed++;
-          console.log(
-            `[Worker ${id}] Remaining: ${results.length - completed}`
-          );
         }
       }
 
@@ -148,7 +117,6 @@ async function processCsv() {
 
       await Promise.all(activeWorkers);
 
-      console.log("All downloads completed.");
       console.timeEnd("Total Download Time");
     });
 }
