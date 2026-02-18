@@ -5,7 +5,7 @@ const path = require("path");
 const csv = require("csv-parser");
 const PosterDatabase = require("./database");
 
-async function downloadPoster(id, name, year, url, workerId) {
+async function downloadPoster(id, name, year, url, workerId, db) {
   try {
     console.log(`[Worker ${workerId}] Processing: ${name} (${id})`);
 
@@ -55,7 +55,7 @@ async function downloadPoster(id, name, year, url, workerId) {
       return;
     }
 
-    storePosterInfo(id, name, year, imgSrc);
+    storePosterInfo(id, name, year, imgSrc, db);
   } catch (error) {
     console.error(
       `[Worker ${workerId}] Error occurred for ${id}:`,
@@ -64,18 +64,21 @@ async function downloadPoster(id, name, year, url, workerId) {
   }
 }
 
-function storePosterInfo(id, name, year, imageUrl) {
-  db.insertPoster(id, name, year, imageUrl);
+function storePosterInfo(id, name, year, imageUrl, db) {
+  const success = db.insertPoster(id, name, year, imageUrl);
+  if (!success) {
+    console.error(`Failed to store poster info for ${id}`);
+  }
 }
 
-const db = new PosterDatabase();
-
 async function processCsv() {
+  const db = new PosterDatabase();
   const results = [];
   const csvFile = "letterboxd-watchlist.csv";
 
   if (!fs.existsSync(path.resolve(__dirname, csvFile))) {
     console.error(`CSV file '${csvFile}' not found in the directory.`);
+    db.close();
     return;
   }
 
@@ -103,7 +106,7 @@ async function processCsv() {
 
           if (name && uri) {
             const id = uri.split("/").pop();
-            await downloadPoster(id, name, year, uri, workerId);
+            await downloadPoster(id, name, year, uri, workerId, db);
             await new Promise((resolve) => setTimeout(resolve, 2000));
           }
         }
