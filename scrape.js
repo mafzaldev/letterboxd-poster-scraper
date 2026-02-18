@@ -101,12 +101,15 @@ async function processCsv() {
     .on("end", async () => {
       console.log(`Found ${results.length} items in ${csvFile}.`);
 
+      // Get all existing poster IDs for efficient duplicate checking
+      const existingIds = new Set(db.getAllPosterIds());
+
       // Filter out already scraped items
       const itemsToScrape = results.filter((row) => {
         const uri = row["Letterboxd URI"];
         if (uri) {
-          const id = uri.split("/").filter(p => p).pop();
-          return id && !db.posterExists(id);
+          const id = uri.split("/").filter(part => part).pop();
+          return id && !existingIds.has(id);
         }
         return false;
       });
@@ -127,7 +130,7 @@ async function processCsv() {
           const uri = row["Letterboxd URI"];
 
           if (name && uri) {
-            const id = uri.split("/").filter(p => p).pop();
+            const id = uri.split("/").filter(part => part).pop();
             await downloadPoster(id, name, year, uri, workerId, db);
             processed++;
             console.log(`Progress: ${processed}/${itemsToScrape.length} (${Math.round((processed / itemsToScrape.length) * 100)}%)`);

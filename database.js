@@ -75,6 +75,12 @@ class PosterDatabase {
     return this.countStmt.get().count;
   }
 
+  getAllPosterIds() {
+    const selectSQL = `SELECT id FROM posters`;
+    const stmt = this.db.prepare(selectSQL);
+    return stmt.all().map(row => row.id);
+  }
+
   close() {
     this.db.close();
   }
