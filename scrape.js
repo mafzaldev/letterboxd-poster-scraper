@@ -3,6 +3,7 @@ const cheerio = require("cheerio");
 const fs = require("fs");
 const path = require("path");
 const csv = require("csv-parser");
+const PosterDatabase = require("./database");
 
 async function downloadPoster(id, name, year, url, workerId) {
   try {
@@ -64,13 +65,10 @@ async function downloadPoster(id, name, year, url, workerId) {
 }
 
 function storePosterInfo(id, name, year, imageUrl) {
-  const postersPath = path.resolve(__dirname, "posters.csv");
-  const csvLine = `"${id}","${name.replace(/"/g, '""')}","${year}","${imageUrl}"\n`;
-  if (!fs.existsSync(postersPath)) {
-    fs.writeFileSync(postersPath, "id,name,year,image_url\n");
-  }
-  fs.appendFileSync(postersPath, csvLine);
+  db.insertPoster(id, name, year, imageUrl);
 }
+
+const db = new PosterDatabase();
 
 async function processCsv() {
   const results = [];
@@ -118,6 +116,8 @@ async function processCsv() {
       await Promise.all(activeWorkers);
 
       console.timeEnd("Total Download Time");
+      console.log(`Stored posters in database. Total records: ${db.getAllPosters().length}`);
+      db.close();
     });
 }
 
