@@ -119,7 +119,7 @@ async function processCsv() {
       await Promise.all(activeWorkers);
 
       console.timeEnd("Total Download Time");
-      console.log(`Stored posters in database. Total records: ${db.getAllPosters().length}`);
+      console.log(`Stored posters in database. Total records: ${db.getCount()}`);
       db.close();
     });
 }

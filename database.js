@@ -48,6 +48,12 @@ class PosterDatabase {
     return stmt.all();
   }
 
+  getCount() {
+    const countSQL = `SELECT COUNT(*) as count FROM posters`;
+    const stmt = this.db.prepare(countSQL);
+    return stmt.get().count;
+  }
+
   close() {
     this.db.close();
   }
