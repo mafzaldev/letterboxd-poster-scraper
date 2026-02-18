@@ -14,6 +14,7 @@ async function downloadPoster(id, name, year, url, workerId, db) {
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
       },
+      timeout: 10000, // 10 second timeout
     });
     const html = response.data;
 
@@ -93,9 +94,24 @@ async function processCsv() {
     .on("end", async () => {
       console.log(`Found ${results.length} items in ${csvFile}.`);
 
+      // Filter out already scraped items
+      const itemsToScrape = results.filter((row) => {
+        const uri = row["Letterboxd URI"];
+        if (uri) {
+          const id = uri.split("/").filter(p => p).pop();
+          return id && !db.posterExists(id);
+        }
+        return false;
+      });
+
+      console.log(`Skipping ${results.length - itemsToScrape.length} already scraped items.`);
+      console.log(`Processing ${itemsToScrape.length} new items.`);
+
       const CONCURRENCY_LIMIT = 10;
-      const queue = [...results];
+      const DELAY_MS = 500; // Reduced from 2000ms to 500ms
+      const queue = [...itemsToScrape];
       const activeWorkers = [];
+      let processed = 0;
 
       async function worker(workerId) {
         while (queue.length > 0) {
@@ -105,9 +121,11 @@ async function processCsv() {
           const uri = row["Letterboxd URI"];
 
           if (name && uri) {
-            const id = uri.split("/").pop();
+            const id = uri.split("/").filter(p => p).pop();
             await downloadPoster(id, name, year, uri, workerId, db);
-            await new Promise((resolve) => setTimeout(resolve, 2000));
+            processed++;
+            console.log(`Progress: ${processed}/${itemsToScrape.length} (${Math.round((processed / itemsToScrape.length) * 100)}%)`);
+            await new Promise((resolve) => setTimeout(resolve, DELAY_MS));
           }
         }
       }
