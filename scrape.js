@@ -5,6 +5,13 @@ const path = require("path");
 const csv = require("csv-parser");
 const PosterDatabase = require("./database");
 
+// Configuration - adjust these values based on your needs and target server policies
+const CONFIG = {
+  CONCURRENCY_LIMIT: 10, // Number of concurrent workers
+  DELAY_MS: 500, // Delay between requests in milliseconds (500ms = 0.5s)
+  TIMEOUT_MS: 30000, // Request timeout in milliseconds (30s)
+};
+
 async function downloadPoster(id, name, year, url, workerId, db) {
   try {
     console.log(`[Worker ${workerId}] Processing: ${name} (${id})`);
@@ -14,7 +21,7 @@ async function downloadPoster(id, name, year, url, workerId, db) {
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
       },
-      timeout: 10000, // 10 second timeout
+      timeout: CONFIG.TIMEOUT_MS,
     });
     const html = response.data;
 
@@ -106,9 +113,8 @@ async function processCsv() {
 
       console.log(`Skipping ${results.length - itemsToScrape.length} already scraped items.`);
       console.log(`Processing ${itemsToScrape.length} new items.`);
+      console.log(`Configuration: ${CONFIG.CONCURRENCY_LIMIT} workers, ${CONFIG.DELAY_MS}ms delay, ${CONFIG.TIMEOUT_MS}ms timeout`);
 
-      const CONCURRENCY_LIMIT = 10;
-      const DELAY_MS = 500; // Reduced from 2000ms to 500ms
       const queue = [...itemsToScrape];
       const activeWorkers = [];
       let processed = 0;
@@ -125,12 +131,12 @@ async function processCsv() {
             await downloadPoster(id, name, year, uri, workerId, db);
             processed++;
             console.log(`Progress: ${processed}/${itemsToScrape.length} (${Math.round((processed / itemsToScrape.length) * 100)}%)`);
-            await new Promise((resolve) => setTimeout(resolve, DELAY_MS));
+            await new Promise((resolve) => setTimeout(resolve, CONFIG.DELAY_MS));
           }
         }
       }
 
-      for (let i = 0; i < CONCURRENCY_LIMIT; i++) {
+      for (let i = 0; i < CONFIG.CONCURRENCY_LIMIT; i++) {
         activeWorkers.push(worker(i + 1));
       }
 
