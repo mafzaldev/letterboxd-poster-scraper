@@ -3,8 +3,16 @@ const cheerio = require("cheerio");
 const fs = require("fs");
 const path = require("path");
 const csv = require("csv-parser");
+const PosterDatabase = require("./database");
 
-async function downloadPoster(id, name, year, url, workerId) {
+// Configuration - adjust these values based on your needs and target server policies
+const CONFIG = {
+  CONCURRENCY_LIMIT: 10, // Number of concurrent workers
+  DELAY_MS: 500, // Delay between requests in milliseconds (500ms = 0.5s)
+  TIMEOUT_MS: 30000, // Request timeout in milliseconds (30s)
+};
+
+async function downloadPoster(id, name, year, url, workerId, db) {
   try {
     console.log(`[Worker ${workerId}] Processing: ${name} (${id})`);
 
@@ -13,6 +21,7 @@ async function downloadPoster(id, name, year, url, workerId) {
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
       },
+      timeout: CONFIG.TIMEOUT_MS,
     });
     const html = response.data;
 
@@ -54,7 +63,7 @@ async function downloadPoster(id, name, year, url, workerId) {
       return;
     }
 
-    storePosterInfo(id, name, year, imgSrc);
+    storePosterInfo(id, name, year, imgSrc, db);
   } catch (error) {
     console.error(
       `[Worker ${workerId}] Error occurred for ${id}:`,
@@ -63,21 +72,21 @@ async function downloadPoster(id, name, year, url, workerId) {
   }
 }
 
-function storePosterInfo(id, name, year, imageUrl) {
-  const postersPath = path.resolve(__dirname, "posters.csv");
-  const csvLine = `"${id}","${name.replace(/"/g, '""')}","${year}","${imageUrl}"\n`;
-  if (!fs.existsSync(postersPath)) {
-    fs.writeFileSync(postersPath, "id,name,year,image_url\n");
+function storePosterInfo(id, name, year, imageUrl, db) {
+  const success = db.insertPoster(id, name, year, imageUrl);
+  if (!success) {
+    console.error(`Failed to store poster info for ${id}`);
   }
-  fs.appendFileSync(postersPath, csvLine);
 }
 
 async function processCsv() {
+  const db = new PosterDatabase();
   const results = [];
   const csvFile = "letterboxd-watchlist.csv";
 
   if (!fs.existsSync(path.resolve(__dirname, csvFile))) {
     console.error(`CSV file '${csvFile}' not found in the directory.`);
+    db.close();
     return;
   }
 
@@ -92,9 +101,26 @@ async function processCsv() {
     .on("end", async () => {
       console.log(`Found ${results.length} items in ${csvFile}.`);
 
-      const CONCURRENCY_LIMIT = 10;
-      const queue = [...results];
+      // Get all existing poster IDs for efficient duplicate checking
+      const existingIds = new Set(db.getAllPosterIds());
+
+      // Filter out already scraped items
+      const itemsToScrape = results.filter((row) => {
+        const uri = row["Letterboxd URI"];
+        if (uri) {
+          const id = uri.split("/").filter(part => part).pop();
+          return id && !existingIds.has(id);
+        }
+        return false;
+      });
+
+      console.log(`Skipping ${results.length - itemsToScrape.length} already scraped items.`);
+      console.log(`Processing ${itemsToScrape.length} new items.`);
+      console.log(`Configuration: ${CONFIG.CONCURRENCY_LIMIT} workers, ${CONFIG.DELAY_MS}ms delay, ${CONFIG.TIMEOUT_MS}ms timeout`);
+
+      const queue = [...itemsToScrape];
       const activeWorkers = [];
+      let processed = 0;
 
       async function worker(workerId) {
         while (queue.length > 0) {
@@ -104,20 +130,24 @@ async function processCsv() {
           const uri = row["Letterboxd URI"];
 
           if (name && uri) {
-            const id = uri.split("/").pop();
-            await downloadPoster(id, name, year, uri, workerId);
-            await new Promise((resolve) => setTimeout(resolve, 2000));
+            const id = uri.split("/").filter(part => part).pop();
+            await downloadPoster(id, name, year, uri, workerId, db);
+            processed++;
+            console.log(`Progress: ${processed}/${itemsToScrape.length} (${Math.round((processed / itemsToScrape.length) * 100)}%)`);
+            await new Promise((resolve) => setTimeout(resolve, CONFIG.DELAY_MS));
           }
         }
       }
 
-      for (let i = 0; i < CONCURRENCY_LIMIT; i++) {
+      for (let i = 0; i < CONFIG.CONCURRENCY_LIMIT; i++) {
         activeWorkers.push(worker(i + 1));
       }
 
       await Promise.all(activeWorkers);
 
       console.timeEnd("Total Download Time");
+      console.log(`Stored posters in database. Total records: ${db.getCount()}`);
+      db.close();
     });
 }
 
