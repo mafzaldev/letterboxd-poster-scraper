@@ -237,28 +237,34 @@ pickBtn.addEventListener("click", () => {
 
   const cards = Array.from(posterHeap.querySelectorAll(".poster-card"));
   const target = Math.floor(Math.random() * posters.length);
-  let current = 0;
+  // Start from a random position so the destination is never guessable
+  let current = Math.floor(Math.random() * posters.length);
   let step = 0;
-  const steps = 22 + Math.floor(Math.random() * 12); // 22–34 hops
-  let delay = 55;
+  const steps = 24 + Math.floor(Math.random() * 14); // 24–37 hops
+  let delay = 60;
 
-  function focusCard(idx, smooth) {
+  function focusCard(idx) {
     cards.forEach((c) => c.classList.remove("focused"));
     cards[idx].classList.add("focused");
-    cards[idx].scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "center", inline: "nearest" });
   }
 
   function hop() {
-    current = (current + 1) % posters.length;
-    focusCard(current, false); // instant during roulette to avoid scroll queue buildup
+    // Jump to a random card – never the same one twice in a row (O(1), no loop)
+    let next = Math.floor(Math.random() * (posters.length - 1));
+    if (next >= current) next++;
+    current = next;
+    focusCard(current);
 
     step++;
-    delay = Math.min(delay * 1.11, 480);
+    // Ease out: slow down gradually
+    delay = Math.min(delay * 1.13, 520);
     if (step < steps) {
       setTimeout(hop, delay);
     } else {
-      focusCard(target, true); // smooth scroll only for the final landing
-      setTimeout(() => showWinner(target), 600);
+      // Land precisely on the chosen winner, scroll it into view once
+      focusCard(target);
+      cards[target].scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+      setTimeout(() => showWinner(target), 700);
     }
   }
   hop();
