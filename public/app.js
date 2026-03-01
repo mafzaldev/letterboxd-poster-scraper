@@ -2,48 +2,92 @@
 "use strict";
 
 // ── DOM refs ─────────────────────────────────────────────────────────────────
-const uploadScreen   = document.getElementById("upload-screen");
-const carouselScreen = document.getElementById("carousel-screen");
-const csvInput       = document.getElementById("csv-input");
-const dropZone       = document.getElementById("drop-zone");
-const dropLabel      = document.getElementById("drop-label");
-const startBtn       = document.getElementById("start-btn");
-const errorMsg       = document.getElementById("error-msg");
-const uploadProgress = document.getElementById("upload-progress");
-const progressBar    = document.getElementById("progress-bar");
-const progressText   = document.getElementById("progress-text");
+const homeScreen      = document.getElementById("home-screen");
+const carouselScreen  = document.getElementById("carousel-screen");
 
-const backBtn        = document.getElementById("back-btn");
-const musicBtn       = document.getElementById("music-btn");
-const movieCountLbl  = document.getElementById("movie-count-label");
-const carouselTrack  = document.getElementById("carousel-track");
-const arrowLeft      = document.getElementById("arrow-left");
-const arrowRight     = document.getElementById("arrow-right");
-const nowTitle       = document.getElementById("now-title");
-const nowYear        = document.getElementById("now-year");
-const pickBtn        = document.getElementById("pick-btn");
-const winnerOverlay  = document.getElementById("winner-overlay");
-const winnerImg      = document.getElementById("winner-img");
-const winnerTitle    = document.getElementById("winner-title");
-const winnerYear     = document.getElementById("winner-year");
-const winnerClose    = document.getElementById("winner-close");
+const csvInput        = document.getElementById("csv-input");
+const dropZone        = document.getElementById("drop-zone");
+const dropLabel       = document.getElementById("drop-label");
+const startBtn        = document.getElementById("start-btn");
+const errorMsg        = document.getElementById("error-msg");
+const uploadProgress  = document.getElementById("upload-progress");
+const progressBar     = document.getElementById("progress-bar");
+const progressText    = document.getElementById("progress-text");
+
+const watchlistsList  = document.getElementById("watchlists-list");
+const noWatchlists    = document.getElementById("no-watchlists");
+
+const backBtn         = document.getElementById("back-btn");
+const musicBtn        = document.getElementById("music-btn");
+const watchlistNameLbl= document.getElementById("watchlist-name-label");
+const movieCountLbl   = document.getElementById("movie-count-label");
+const posterGrid      = document.getElementById("poster-grid");
+const pickBtn         = document.getElementById("pick-btn");
+const winnerOverlay   = document.getElementById("winner-overlay");
+const winnerImg       = document.getElementById("winner-img");
+const winnerTitle     = document.getElementById("winner-title");
+const winnerYear      = document.getElementById("winner-year");
+const winnerClose     = document.getElementById("winner-close");
 
 // ── State ────────────────────────────────────────────────────────────────────
-let posters          = [];
-let currentIndex     = 0;
-let visibleCount     = 5;   // recalculated on resize
-let isAnimating      = false;
-let musicEnabled     = false;
-let audioCtx         = null;
-let musicNodes       = {};
+let posters      = [];
+let isAnimating  = false;
+let musicEnabled = false;
+let audioCtx     = null;
+let musicNodes   = {};
+
+// ── Init: load watchlists on page load ───────────────────────────────────────
+loadWatchlists();
+
+async function loadWatchlists() {
+  try {
+    const res = await fetch("/api/watchlists");
+    const { watchlists } = await res.json();
+    renderWatchlists(watchlists);
+  } catch (_) {
+    renderWatchlists([]);
+  }
+}
+
+function renderWatchlists(list) {
+  watchlistsList.innerHTML = "";
+  if (!list || list.length === 0) {
+    noWatchlists.classList.remove("hidden");
+    return;
+  }
+  noWatchlists.classList.add("hidden");
+
+  list.forEach((w) => {
+    const item = document.createElement("div");
+    item.className = "watchlist-item";
+    item.innerHTML = `
+      <div class="watchlist-item-name" title="${escHtml(w.name)}">${escHtml(w.name)}</div>
+      <div class="watchlist-item-meta">
+        ${w.movie_count} movie${w.movie_count !== 1 ? "s" : ""}<br />
+        ${formatDate(w.created_at)}
+      </div>`;
+    item.addEventListener("click", () => openWatchlist(w.id, w.name, w.movie_count));
+    watchlistsList.appendChild(item);
+  });
+}
+
+async function openWatchlist(id, name, count) {
+  try {
+    const res = await fetch(`/api/watchlists/${id}/posters`);
+    const { posters: data } = await res.json();
+    launchCarousel(data, name, count);
+  } catch (_) {
+    alert("Failed to load watchlist.");
+  }
+}
 
 // ── File selection ────────────────────────────────────────────────────────────
 csvInput.addEventListener("change", () => {
   if (csvInput.files[0]) onFileSelected(csvInput.files[0]);
 });
 
-dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dropZone.classList.add("drag-over"); });
-dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag-over"));
+dropZone.addEventListener("dragover",  (e) => { e.preventDefault(); dropZone.classList.add("drag-over"); });
+dropZone.addEventListener("dragleave", ()  => dropZone.classList.remove("drag-over"));
 dropZone.addEventListener("drop", (e) => {
   e.preventDefault();
   dropZone.classList.remove("drag-over");
@@ -56,12 +100,12 @@ function onFileSelected(file) {
     showError("Please upload a .csv file from Letterboxd.");
     return;
   }
-  dropLabel.innerHTML = `<strong>${file.name}</strong> selected`;
+  dropLabel.innerHTML = `<strong>${escHtml(file.name)}</strong> selected`;
   startBtn.disabled = false;
   hideError();
 }
 
-// ── Start button ──────────────────────────────────────────────────────────────
+// ── Upload / scrape ───────────────────────────────────────────────────────────
 startBtn.addEventListener("click", async () => {
   const file = csvInput.files[0];
   if (!file) return;
@@ -70,28 +114,32 @@ startBtn.addEventListener("click", async () => {
   hideError();
   uploadProgress.classList.remove("hidden");
   progressBar.style.width = "0%";
-  progressText.textContent = "Starting…";
+  progressText.textContent = "Starting...";
 
   const formData = new FormData();
   formData.append("watchlist", file);
 
   try {
-    const eventSource = await fetchWithSSE("/api/scrape?stream=1", formData);
-    eventSource.onmessage = (e) => {
+    const source = await fetchWithSSE("/api/scrape?stream=1", formData);
+    source.onmessage = (e) => {
       const data = JSON.parse(e.data);
       if (data.type === "progress") {
         const pct = data.total ? Math.round((data.done / data.total) * 100) : 0;
         progressBar.style.width = pct + "%";
-        progressText.textContent = `Fetching posters… ${data.done} / ${data.total}`;
+        progressText.textContent = `Fetching posters... ${data.done} / ${data.total}`;
       } else if (data.type === "done") {
-        eventSource.close();
+        source.close();
         progressBar.style.width = "100%";
-        progressText.textContent = `Done! Found ${data.posters.length} posters.`;
-        setTimeout(() => launchCarousel(data.posters), 600);
+        progressText.textContent = data.cached
+          ? "Loaded from cache."
+          : `Done. Found ${data.posters.length} posters.`;
+        // Refresh watchlists sidebar, then show carousel
+        loadWatchlists();
+        setTimeout(() => launchCarousel(data.posters, data.watchlistName, data.posters.length), 500);
       }
     };
-    eventSource.onerror = () => {
-      eventSource.close();
+    source.onerror = () => {
+      source.close();
       showError("Connection error. Please try again.");
       startBtn.disabled = false;
     };
@@ -101,7 +149,7 @@ startBtn.addEventListener("click", async () => {
   }
 });
 
-/** POST a FormData and return an EventSource-like object via fetch + ReadableStream */
+/** POST FormData and return a fake EventSource backed by fetch + ReadableStream */
 async function fetchWithSSE(url, formData) {
   const response = await fetch(url, { method: "POST", body: formData });
   if (!response.ok) {
@@ -113,8 +161,7 @@ async function fetchWithSSE(url, formData) {
   const decoder = new TextDecoder();
   let buffer = "";
 
-  // Fake EventSource interface
-  const fake = { onmessage: null, onerror: null, close: () => { reader.cancel(); } };
+  const fake = { onmessage: null, onerror: null, close: () => reader.cancel() };
 
   (async () => {
     try {
@@ -139,22 +186,22 @@ async function fetchWithSSE(url, formData) {
   return fake;
 }
 
-// ── Carousel ──────────────────────────────────────────────────────────────────
-function launchCarousel(data) {
+// ── Carousel (multi-row full-page grid) ───────────────────────────────────────
+function launchCarousel(data, name, count) {
   posters = data;
-  currentIndex = 0;
 
-  uploadScreen.classList.remove("active");
+  homeScreen.classList.remove("active");
   carouselScreen.classList.add("active");
 
-  movieCountLbl.textContent = `${posters.length} movies in your list`;
-  buildCarousel();
-  updateNowShowing();
+  watchlistNameLbl.textContent = name || "Watchlist";
+  movieCountLbl.textContent = `${count || data.length} movies`;
+
+  buildGrid();
   startMusic();
 }
 
-function buildCarousel() {
-  carouselTrack.innerHTML = "";
+function buildGrid() {
+  posterGrid.innerHTML = "";
   posters.forEach((p, i) => {
     const card = document.createElement("div");
     card.className = "poster-card";
@@ -167,66 +214,12 @@ function buildCarousel() {
 
     const label = document.createElement("div");
     label.className = "card-label";
-    label.textContent = p.name;
+    label.textContent = p.name + (p.year ? ` (${p.year})` : "");
 
     card.appendChild(img);
     card.appendChild(label);
-    card.addEventListener("click", () => focusCard(i));
-    carouselTrack.appendChild(card);
+    posterGrid.appendChild(card);
   });
-
-  recalcVisible();
-  scrollToIndex(currentIndex, false);
-}
-
-function recalcVisible() {
-  const w = document.getElementById("carousel-wrapper").clientWidth - 120;
-  const cardW = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--card-w")) || 180;
-  const gap   = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--gap"))    || 20;
-  visibleCount = Math.max(1, Math.floor((w + gap) / (cardW + gap)));
-}
-
-window.addEventListener("resize", () => {
-  recalcVisible();
-  scrollToIndex(currentIndex, false);
-});
-
-function scrollToIndex(idx, animate = true) {
-  const cards = carouselTrack.querySelectorAll(".poster-card");
-  if (!cards.length) return;
-
-  // Clamp
-  idx = Math.max(0, Math.min(idx, posters.length - 1));
-  currentIndex = idx;
-
-  const cardW = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--card-w")) || 180;
-  const gap   = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--gap"))    || 20;
-
-  // Center current card in the visible strip
-  const offset = idx * (cardW + gap) - (visibleCount / 2 - 0.5) * (cardW + gap);
-  carouselTrack.style.transition = animate ? "transform .45s cubic-bezier(.4,0,.2,1)" : "none";
-  carouselTrack.style.transform  = `translateX(${-Math.max(0, offset)}px)`;
-
-  cards.forEach((c, i) => c.classList.toggle("focused", i === idx));
-  updateNowShowing();
-}
-
-function focusCard(idx) { scrollToIndex(idx); }
-
-arrowLeft.addEventListener("click",  () => scrollToIndex(currentIndex - 1));
-arrowRight.addEventListener("click", () => scrollToIndex(currentIndex + 1));
-
-document.addEventListener("keydown", (e) => {
-  if (!carouselScreen.classList.contains("active")) return;
-  if (e.key === "ArrowLeft")  scrollToIndex(currentIndex - 1);
-  if (e.key === "ArrowRight") scrollToIndex(currentIndex + 1);
-});
-
-function updateNowShowing() {
-  const p = posters[currentIndex];
-  if (!p) return;
-  nowTitle.textContent = p.name;
-  nowYear.textContent  = p.year ? `(${p.year})` : "";
 }
 
 // ── Pick random ───────────────────────────────────────────────────────────────
@@ -235,21 +228,30 @@ pickBtn.addEventListener("click", () => {
   isAnimating = true;
   pickBtn.disabled = true;
 
+  const cards = Array.from(posterGrid.querySelectorAll(".poster-card"));
   const target = Math.floor(Math.random() * posters.length);
-  let steps = 20 + Math.floor(Math.random() * 15); // 20-35 hops
-  let delay = 60;
-  let i = 0;
+  let current = 0;
+  let step = 0;
+  const steps = 22 + Math.floor(Math.random() * 12); // 22–34 hops
+  let delay = 55;
+
+  function focusCard(idx, smooth) {
+    cards.forEach((c) => c.classList.remove("focused"));
+    cards[idx].classList.add("focused");
+    cards[idx].scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "center", inline: "nearest" });
+  }
 
   function hop() {
-    const next = (currentIndex + 1) % posters.length;
-    scrollToIndex(next);
-    i++;
-    delay = Math.min(delay * 1.12, 450);
-    if (i < steps) {
+    current = (current + 1) % posters.length;
+    focusCard(current, false); // instant during roulette to avoid scroll queue buildup
+
+    step++;
+    delay = Math.min(delay * 1.11, 480);
+    if (step < steps) {
       setTimeout(hop, delay);
     } else {
-      scrollToIndex(target);
-      setTimeout(() => showWinner(target), 500);
+      focusCard(target, true); // smooth scroll only for the final landing
+      setTimeout(() => showWinner(target), 600);
     }
   }
   hop();
@@ -257,8 +259,8 @@ pickBtn.addEventListener("click", () => {
 
 function showWinner(idx) {
   const p = posters[idx];
-  winnerImg.src          = p.imageUrl;
-  winnerImg.alt          = p.name;
+  winnerImg.src           = p.imageUrl;
+  winnerImg.alt           = p.name;
   winnerTitle.textContent = p.name;
   winnerYear.textContent  = p.year ? `(${p.year})` : "";
   winnerOverlay.classList.remove("hidden");
@@ -274,22 +276,24 @@ winnerClose.addEventListener("click", () => {
 // ── Back button ───────────────────────────────────────────────────────────────
 backBtn.addEventListener("click", () => {
   carouselScreen.classList.remove("active");
-  uploadScreen.classList.add("active");
+  homeScreen.classList.add("active");
   stopMusic();
+
   // Reset upload UI
   csvInput.value = "";
-  dropLabel.innerHTML = `Drop your <strong>watchlist.csv</strong> here<br />or click to browse`;
+  dropLabel.innerHTML = `Drop <strong>watchlist.csv</strong> here<br />or click to browse`;
   startBtn.disabled = true;
   uploadProgress.classList.add("hidden");
   progressBar.style.width = "0%";
   winnerOverlay.classList.add("hidden");
   isAnimating = false;
+
+  // Refresh watchlists in case a new one was added
+  loadWatchlists();
 });
 
 // ── Ambient music (Web Audio API synthesizer) ─────────────────────────────────
-// A gentle cinematic ambient loop built entirely from oscillators – no audio
-// files needed, works offline.
-const CHORD_NOTES = [55, 65.41, 73.42, 87.31]; // Am pentatonic (A2 C3 D3 F3)
+const CHORD_NOTES  = [55, 65.41, 73.42, 87.31];
 const MELODY_NOTES = [220, 261.63, 293.66, 349.23, 392, 440, 523.25];
 
 function startMusic() {
@@ -300,16 +304,13 @@ function startMusic() {
     musicNodes.master.gain.value = 0;
     musicNodes.master.connect(audioCtx.destination);
 
-    // Reverb via convolver
     const convolver = audioCtx.createConvolver();
-    const impulse = makeImpulse(audioCtx, 3, 2, false);
-    convolver.buffer = impulse;
+    convolver.buffer = makeImpulse(audioCtx, 3, 2);
     const reverbGain = audioCtx.createGain();
     reverbGain.gain.value = 0.35;
     convolver.connect(reverbGain);
     reverbGain.connect(musicNodes.master);
 
-    // Pad chords
     CHORD_NOTES.forEach((freq) => {
       const osc = audioCtx.createOscillator();
       osc.type = "sine";
@@ -322,24 +323,20 @@ function startMusic() {
       osc.start();
     });
 
-    // Slow pluck melody
     scheduleMelody();
     musicNodes.melodyTimer = setInterval(scheduleMelody, 8000);
-
-    // Fade in
     musicNodes.master.gain.setTargetAtTime(1, audioCtx.currentTime, 1.5);
     musicEnabled = true;
     updateMusicBtn();
   } catch (err) {
-    console.warn("Web Audio API not available – music disabled:", err.message);
-    musicBtn.textContent = "🔇 Music (N/A)";
+    console.warn("Web Audio API not available:", err.message);
+    musicBtn.textContent = "Music (N/A)";
   }
 }
 
 function scheduleMelody() {
   if (!audioCtx) return;
-  const noteSet = shuffleArray([...MELODY_NOTES]).slice(0, 5);
-  noteSet.forEach((freq, i) => {
+  shuffleArray([...MELODY_NOTES]).slice(0, 5).forEach((freq, i) => {
     const t = audioCtx.currentTime + i * 1.6;
     const osc = audioCtx.createOscillator();
     osc.type = "triangle";
@@ -355,18 +352,16 @@ function scheduleMelody() {
   });
 }
 
-function makeImpulse(ctx, duration, decay, reverse) {
-  const sampleRate = ctx.sampleRate;
-  const length = sampleRate * duration;
-  const impulse = ctx.createBuffer(2, length, sampleRate);
+function makeImpulse(ctx, duration, decay) {
+  const len = ctx.sampleRate * duration;
+  const buf = ctx.createBuffer(2, len, ctx.sampleRate);
   for (let c = 0; c < 2; c++) {
-    const data = impulse.getChannelData(c);
-    for (let i = 0; i < length; i++) {
-      const n = reverse ? length - i : i;
-      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - n / length, decay);
+    const d = buf.getChannelData(c);
+    for (let i = 0; i < len; i++) {
+      d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
     }
   }
-  return impulse;
+  return buf;
 }
 
 function stopMusic() {
@@ -392,14 +387,13 @@ musicBtn.addEventListener("click", () => {
 });
 
 function updateMusicBtn() {
-  musicBtn.textContent = musicEnabled ? "🔊 Music" : "🔇 Music";
+  musicBtn.textContent = musicEnabled ? "Music ON" : "Music OFF";
   musicBtn.classList.toggle("active", musicEnabled);
 }
 
 function playWinnerSound() {
   if (!audioCtx) return;
-  const freqs = [523.25, 659.25, 783.99, 1046.5];
-  freqs.forEach((f, i) => {
+  [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
     const t = audioCtx.currentTime + i * 0.12;
     const osc = audioCtx.createOscillator();
     osc.type = "sine";
@@ -428,4 +422,18 @@ function shuffleArray(arr) {
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
   return arr;
+}
+
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function formatDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }

@@ -12,64 +12,70 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <!-- ── Upload screen ──────────────────────────────────────────────────── -->
-  <section id="upload-screen" class="screen active">
-    <div class="upload-card">
-      <div class="logo">🎬</div>
-      <h1>Letterboxd<br /><span>Movie Picker</span></h1>
-      <p class="subtitle">Upload your watchlist &amp; let fate decide your next watch</p>
 
-      <label class="drop-zone" id="drop-zone">
-        <input type="file" id="csv-input" accept=".csv" hidden />
-        <div class="drop-icon">📂</div>
-        <span id="drop-label">Drop your <strong>watchlist.csv</strong> here<br />or click to browse</span>
-      </label>
+  <!-- ── Home screen ─────────────────────────────────────────────────────── -->
+  <section id="home-screen" class="screen active">
+    <div class="home-layout">
 
-      <div id="upload-progress" class="upload-progress hidden">
-        <div class="progress-bar-wrap">
-          <div class="progress-bar" id="progress-bar"></div>
+      <!-- Left panel: brand + upload -->
+      <aside class="home-sidebar">
+        <div class="brand">
+          <h1>Letterboxd<br /><span>Movie Picker</span></h1>
+          <p class="subtitle">Upload your watchlist and let fate decide your next watch</p>
         </div>
-        <span id="progress-text">Fetching posters… 0 / 0</span>
-      </div>
 
-      <button id="start-btn" class="btn-primary" disabled>
-        <span>✨ Fetch Posters</span>
-      </button>
+        <div class="upload-section">
+          <label class="drop-zone" id="drop-zone">
+            <input type="file" id="csv-input" accept=".csv" hidden />
+            <p class="drop-hint" id="drop-label">Drop <strong>watchlist.csv</strong> here<br />or click to browse</p>
+          </label>
 
-      <p id="error-msg" class="error-msg hidden"></p>
+          <div id="upload-progress" class="upload-progress hidden">
+            <div class="progress-bar-wrap">
+              <div class="progress-bar" id="progress-bar"></div>
+            </div>
+            <span id="progress-text">Fetching posters... 0 / 0</span>
+          </div>
+
+          <button id="start-btn" class="btn-primary" disabled>Fetch Posters</button>
+          <p id="error-msg" class="error-msg hidden"></p>
+        </div>
+      </aside>
+
+      <!-- Right panel: saved watchlists -->
+      <main class="watchlists-panel">
+        <h2 class="panel-title">Your Watchlists</h2>
+        <div id="watchlists-list" class="watchlists-list"></div>
+        <p id="no-watchlists" class="no-watchlists hidden">
+          No watchlists yet. Upload a CSV to get started.
+        </p>
+      </main>
+
     </div>
   </section>
 
-  <!-- ── Carousel screen ───────────────────────────────────────────────── -->
+  <!-- ── Carousel screen ─────────────────────────────────────────────────── -->
   <section id="carousel-screen" class="screen">
     <header class="top-bar">
-      <button id="back-btn" class="btn-ghost">← New List</button>
-      <h2 id="movie-count-label"></h2>
-      <button id="music-btn" class="btn-ghost" title="Toggle music">🔇 Music</button>
+      <button id="back-btn" class="btn-ghost">Back</button>
+      <div class="top-bar-center">
+        <span id="watchlist-name-label" class="top-bar-name"></span>
+        <span id="movie-count-label" class="top-bar-count"></span>
+      </div>
+      <button id="music-btn" class="btn-ghost">Music OFF</button>
     </header>
 
-    <div class="carousel-wrapper" id="carousel-wrapper">
-      <button class="carousel-arrow left"  id="arrow-left">&#8249;</button>
-      <div class="carousel-track-outer">
-        <div class="carousel-track" id="carousel-track"></div>
-      </div>
-      <button class="carousel-arrow right" id="arrow-right">&#8250;</button>
-    </div>
+    <div class="poster-grid" id="poster-grid"></div>
 
-    <div class="now-showing" id="now-showing">
-      <p id="now-title"></p>
-      <p id="now-year"></p>
+    <div class="bottom-bar">
+      <button id="pick-btn" class="btn-pick">Pick Random</button>
     </div>
-
-    <button id="pick-btn" class="btn-pick">
-      🎲 Pick a Random Movie
-    </button>
 
     <div id="winner-overlay" class="winner-overlay hidden">
       <div class="winner-card">
         <img id="winner-img" src="" alt="" />
         <h2 id="winner-title"></h2>
-        <p  id="winner-year"></p>
+        <p id="winner-year"></p>
         <button id="winner-close" class="btn-primary">Watch Something Else</button>
       </div>
     </div>

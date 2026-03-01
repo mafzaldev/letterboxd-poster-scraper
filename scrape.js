@@ -27,19 +27,18 @@ function parseCsv(csvFilePath) {
 }
 
 /**
- * Scrape poster URLs from a Letterboxd watchlist CSV file and return an array
- * of { id, name, year, imageUrl } objects.  Progress is reported via the
- * optional `onProgress(current, total)` callback.
+ * Scrape poster URLs for an array of already-parsed CSV row objects.
+ * Each row must have "Name", "Year", and "Letterboxd URI" fields.
+ * Returns an array of { id, name, year, imageUrl } objects.
+ * Progress is reported via the optional onProgress(current, total) callback.
  */
-async function scrapeFromCsv(csvFilePath, onProgress) {
-  const rows = await parseCsv(csvFilePath);
-
-  const queue = rows.filter((row) => row["Letterboxd URI"] && row["Name"]);
+async function scrapeRows(rows, onProgress) {
+  const queue = [...rows];
   const total = queue.length;
   let processed = 0;
   const results = [];
 
-  async function worker(workerId) {
+  async function worker() {
     while (queue.length > 0) {
       const row = queue.shift();
       const name = row["Name"];
@@ -86,11 +85,21 @@ async function scrapeFromCsv(csvFilePath, onProgress) {
 
   const workers = [];
   for (let i = 0; i < CONFIG.CONCURRENCY_LIMIT; i++) {
-    workers.push(worker(i + 1));
+    workers.push(worker());
   }
   await Promise.all(workers);
 
   return results;
+}
+
+/**
+ * Scrape poster URLs from a Letterboxd watchlist CSV file.
+ * Returns an array of { id, name, year, imageUrl } objects.
+ */
+async function scrapeFromCsv(csvFilePath, onProgress) {
+  const rows = await parseCsv(csvFilePath);
+  const validRows = rows.filter((row) => row["Letterboxd URI"] && row["Name"]);
+  return scrapeRows(validRows, onProgress);
 }
 
 // ── CLI entry-point (node scrape.js) ─────────────────────────────────────────
@@ -109,9 +118,8 @@ async function processCsv() {
   console.time("Total Download Time");
 
   const existingIds = new Set(db.getAllPosterIds());
-
   const allRows = await parseCsv(csvFilePath);
-  const itemsToScrape = allRows.filter((row) => {
+  const newRows = allRows.filter((row) => {
     const uri = row["Letterboxd URI"];
     if (uri) {
       const id = uri.split("/").filter((p) => p).pop();
@@ -121,10 +129,10 @@ async function processCsv() {
   });
 
   console.log(`Found ${allRows.length} items in ${csvFile}.`);
-  console.log(`Skipping ${allRows.length - itemsToScrape.length} already scraped items.`);
-  console.log(`Processing ${itemsToScrape.length} new items.`);
+  console.log(`Skipping ${allRows.length - newRows.length} already scraped items.`);
+  console.log(`Processing ${newRows.length} new items.`);
 
-  const posters = await scrapeFromCsv(csvFilePath, (done, total) => {
+  const posters = await scrapeRows(newRows, (done, total) => {
     console.log(`Progress: ${done}/${total} (${Math.round((done / total) * 100)}%)`);
   });
 
@@ -141,4 +149,4 @@ if (require.main === module) {
   processCsv();
 }
 
-module.exports = { scrapeFromCsv, parseCsv };
+module.exports = { scrapeFromCsv, scrapeRows, parseCsv };
