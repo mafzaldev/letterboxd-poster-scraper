@@ -186,7 +186,7 @@ async function fetchWithSSE(url, formData) {
   return fake;
 }
 
-// ── Carousel (multi-row full-page grid) ───────────────────────────────────────
+// ── Carousel (poster heap stack) ──────────────────────────────────────────────
 function launchCarousel(data, name, count) {
   posters = data;
 
@@ -200,18 +200,25 @@ function launchCarousel(data, name, count) {
   startMusic();
 }
 
-// ── Poster heap ───────────────────────────────────────────────────────────────
+// ── Poster heap stack ─────────────────────────────────────────────────────────
 function buildHeap() {
   posterHeap.innerHTML = "";
+  // All cards are stacked inside a fixed-size pile container; DOM order determines
+  // natural z-stacking (last child = topmost), so no inline z-index is needed.
+  const stack = document.createElement("div");
+  stack.className = "poster-stack";
+
   posters.forEach((p, i) => {
     const card = document.createElement("div");
     card.className = "poster-card";
     card.dataset.index = i;
 
-    // Assign random tilt and vertical jitter so cards look like a physical pile
-    const rot = (Math.random() * 24) - 12;          // −12 … +12 deg
-    const ty  = (Math.random() * 16)  - 8;           // −8  … +8  px
+    // Random scatter so the pile looks physical rather than perfectly aligned
+    const rot = (Math.random() * 30) - 15;   // −15 … +15 deg
+    const tx  = (Math.random() * 36) - 18;   // −18 … +18 px
+    const ty  = (Math.random() * 24) - 12;   // −12 … +12 px
     card.style.setProperty("--rot", `${rot.toFixed(2)}deg`);
+    card.style.setProperty("--tx",  `${tx.toFixed(2)}px`);
     card.style.setProperty("--ty",  `${ty.toFixed(2)}px`);
 
     const img = document.createElement("img");
@@ -225,8 +232,10 @@ function buildHeap() {
 
     card.appendChild(img);
     card.appendChild(label);
-    posterHeap.appendChild(card);
+    stack.appendChild(card);
   });
+
+  posterHeap.appendChild(stack);
 }
 
 // ── Pick random ───────────────────────────────────────────────────────────────
@@ -261,9 +270,8 @@ pickBtn.addEventListener("click", () => {
     if (step < steps) {
       setTimeout(hop, delay);
     } else {
-      // Land precisely on the chosen winner, scroll it into view once
+      // Land precisely on the chosen winner
       focusCard(target);
-      cards[target].scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
       setTimeout(() => showWinner(target), 700);
     }
   }
