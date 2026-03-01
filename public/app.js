@@ -21,7 +21,7 @@ const backBtn         = document.getElementById("back-btn");
 const musicBtn        = document.getElementById("music-btn");
 const watchlistNameLbl= document.getElementById("watchlist-name-label");
 const movieCountLbl   = document.getElementById("movie-count-label");
-const posterGrid      = document.getElementById("poster-grid");
+const posterHeap      = document.getElementById("poster-heap");
 const pickBtn         = document.getElementById("pick-btn");
 const winnerOverlay   = document.getElementById("winner-overlay");
 const winnerImg       = document.getElementById("winner-img");
@@ -196,16 +196,23 @@ function launchCarousel(data, name, count) {
   watchlistNameLbl.textContent = name || "Watchlist";
   movieCountLbl.textContent = `${count || data.length} movies`;
 
-  buildGrid();
+  buildHeap();
   startMusic();
 }
 
-function buildGrid() {
-  posterGrid.innerHTML = "";
+// ── Poster heap ───────────────────────────────────────────────────────────────
+function buildHeap() {
+  posterHeap.innerHTML = "";
   posters.forEach((p, i) => {
     const card = document.createElement("div");
     card.className = "poster-card";
     card.dataset.index = i;
+
+    // Assign random tilt and vertical jitter so cards look like a physical pile
+    const rot = (Math.random() * 24) - 12;          // −12 … +12 deg
+    const ty  = (Math.random() * 16)  - 8;           // −8  … +8  px
+    card.style.setProperty("--rot", `${rot.toFixed(2)}deg`);
+    card.style.setProperty("--ty",  `${ty.toFixed(2)}px`);
 
     const img = document.createElement("img");
     img.src = p.imageUrl;
@@ -218,7 +225,7 @@ function buildGrid() {
 
     card.appendChild(img);
     card.appendChild(label);
-    posterGrid.appendChild(card);
+    posterHeap.appendChild(card);
   });
 }
 
@@ -228,7 +235,7 @@ pickBtn.addEventListener("click", () => {
   isAnimating = true;
   pickBtn.disabled = true;
 
-  const cards = Array.from(posterGrid.querySelectorAll(".poster-card"));
+  const cards = Array.from(posterHeap.querySelectorAll(".poster-card"));
   const target = Math.floor(Math.random() * posters.length);
   let current = 0;
   let step = 0;

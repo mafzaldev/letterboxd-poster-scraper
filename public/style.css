@@ -221,26 +221,34 @@ html, body {
   color: var(--accent);
 }
 
-/* ── Poster grid (full-page multi-row) ───────────────────────────────────── */
-.poster-grid {
+/* ── Poster heap (scattered pile of cards) ───────────────────────────────── */
+.poster-heap {
   flex: 1;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-  gap: 12px;
-  padding: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 24px;
   overflow-y: auto;
-  align-content: start;
+  justify-content: center;
+  align-content: flex-start;
 }
 
 .poster-card {
   position: relative;
+  width: 140px;
   aspect-ratio: 2 / 3;
-  border-radius: var(--radius);
+  border-radius: 6px;
   overflow: hidden;
   cursor: pointer;
   background: var(--surface);
-  border: 2px solid transparent;
-  transition: transform .25s cubic-bezier(.34,1.56,.64,1), box-shadow .25s, border-color .15s;
+  /* slight white outline so cards look like physical photos */
+  border: 3px solid rgba(255,255,255,.10);
+  box-shadow: 2px 5px 16px rgba(0,0,0,.65);
+  /* heap tilt – set per-card via JS custom properties */
+  transform: rotate(var(--rot, 0deg)) translateY(var(--ty, 0px));
+  transition: transform .3s cubic-bezier(.34,1.56,.64,1), box-shadow .3s, border-color .2s;
+  flex-shrink: 0;
+  z-index: 1;
 }
 .poster-card img {
   width: 100%;
@@ -261,14 +269,17 @@ html, body {
 }
 .poster-card:hover .card-label { opacity: 1; }
 .poster-card:hover {
-  transform: scale(1.05);
-  box-shadow: 0 8px 28px rgba(0,0,0,.55);
+  /* straighten and lift on hover – card "picked up" from the pile */
+  transform: rotate(0deg) scale(1.12) translateY(-12px);
+  box-shadow: 0 18px 44px rgba(0,0,0,.8);
+  border-color: rgba(255,255,255,.3);
+  z-index: 10;
 }
 .poster-card.focused {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(0,200,255,.3), 0 8px 32px rgba(0,0,0,.6);
-  transform: scale(1.08);
-  z-index: 2;
+  box-shadow: 0 0 0 3px rgba(0,200,255,.35), 0 20px 52px rgba(0,0,0,.85);
+  transform: rotate(0deg) scale(1.14) translateY(-18px);
+  z-index: 20;
 }
 
 /* Bottom bar */
