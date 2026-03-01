@@ -1,0 +1,350 @@
+/* ── Reset & base ─────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #0d0d0f;
+  --surface:   #181820;
+  --border:    #2a2a38;
+  --accent:    #00c8ff;
+  --accent2:   #7b2fff;
+  --text:      #e8e8f0;
+  --muted:     #7a7a99;
+  --card-w:    180px;
+  --card-h:    270px;
+  --radius:    12px;
+  --gap:       20px;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  overflow-x: hidden;
+}
+
+/* ── Screens ─────────────────────────────────────────────────────────────── */
+.screen { display: none; min-height: 100vh; }
+.screen.active { display: flex; }
+
+/* ── Upload screen ───────────────────────────────────────────────────────── */
+#upload-screen {
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(123,47,255,.18) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 20%, rgba(0,200,255,.12) 0%, transparent 60%),
+    var(--bg);
+}
+
+.upload-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  padding: 48px 40px 40px;
+  max-width: 480px;
+  width: 90%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  box-shadow: 0 0 60px rgba(0,200,255,.06);
+}
+
+.logo { font-size: 3rem; }
+
+.upload-card h1 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 3rem;
+  line-height: 1.05;
+  text-align: center;
+  letter-spacing: 2px;
+}
+.upload-card h1 span { color: var(--accent); }
+.subtitle { color: var(--muted); text-align: center; font-size: .95rem; }
+
+/* Drop zone */
+.drop-zone {
+  width: 100%;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 32px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: border-color .2s, background .2s;
+}
+.drop-zone:hover, .drop-zone.drag-over {
+  border-color: var(--accent);
+  background: rgba(0,200,255,.04);
+}
+.drop-icon { font-size: 2.4rem; }
+#drop-label { text-align: center; color: var(--muted); font-size: .9rem; line-height: 1.5; }
+#drop-label strong { color: var(--text); }
+
+/* Progress bar */
+.upload-progress {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.progress-bar-wrap {
+  height: 6px;
+  background: var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.progress-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent2), var(--accent));
+  border-radius: 999px;
+  transition: width .3s;
+}
+#progress-text { font-size: .85rem; color: var(--muted); text-align: center; }
+
+/* Buttons */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, var(--accent2), var(--accent));
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  padding: 14px 32px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity .2s, transform .15s;
+  width: 100%;
+  justify-content: center;
+}
+.btn-primary:hover:not(:disabled) { opacity: .88; transform: translateY(-1px); }
+.btn-primary:disabled { opacity: .35; cursor: not-allowed; }
+
+.error-msg { color: #ff6b6b; font-size: .88rem; text-align: center; }
+.hidden { display: none !important; }
+
+/* ── Carousel screen ─────────────────────────────────────────────────────── */
+#carousel-screen {
+  flex-direction: column;
+  align-items: center;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(123,47,255,.15) 0%, transparent 55%),
+    var(--bg);
+  padding-bottom: 60px;
+}
+
+/* Top bar */
+.top-bar {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 28px;
+  border-bottom: 1px solid var(--border);
+}
+.top-bar h2 { font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; letter-spacing: 1px; color: var(--muted); }
+.btn-ghost {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: .85rem;
+  transition: border-color .2s, color .2s;
+}
+.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+.btn-ghost.active { border-color: var(--accent); color: var(--accent); }
+
+/* Carousel */
+.carousel-wrapper {
+  width: 100%;
+  max-width: 1100px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 40px 16px 24px;
+  position: relative;
+}
+
+.carousel-track-outer {
+  flex: 1;
+  overflow: hidden;
+  border-radius: 16px;
+}
+
+.carousel-track {
+  display: flex;
+  gap: var(--gap);
+  transition: transform .45s cubic-bezier(.4,0,.2,1);
+  will-change: transform;
+  padding: 16px 4px;
+  align-items: center;
+}
+
+/* Individual poster card */
+.poster-card {
+  flex: 0 0 var(--card-w);
+  height: var(--card-h);
+  border-radius: var(--radius);
+  overflow: hidden;
+  position: relative;
+  cursor: pointer;
+  transition: transform .3s cubic-bezier(.34,1.56,.64,1), box-shadow .3s;
+  background: var(--surface);
+  border: 2px solid transparent;
+}
+.poster-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform .4s;
+}
+.poster-card .card-label {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  background: linear-gradient(transparent, rgba(0,0,0,.85));
+  padding: 24px 10px 10px;
+  font-size: .78rem;
+  font-weight: 600;
+  opacity: 0;
+  transition: opacity .2s;
+  line-height: 1.3;
+}
+.poster-card:hover .card-label { opacity: 1; }
+.poster-card:hover {
+  transform: translateY(-6px) scale(1.04);
+  box-shadow: 0 12px 40px rgba(0,0,0,.5);
+}
+.poster-card.focused {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0,200,255,.25), 0 16px 50px rgba(0,0,0,.6);
+  transform: scale(1.10);
+  z-index: 2;
+}
+
+/* Arrow buttons */
+.carousel-arrow {
+  flex: 0 0 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: border-color .2s, background .2s;
+  z-index: 2;
+}
+.carousel-arrow:hover { border-color: var(--accent); background: rgba(0,200,255,.08); }
+
+/* Now showing label */
+.now-showing {
+  text-align: center;
+  min-height: 56px;
+  padding: 0 20px;
+  transition: opacity .2s;
+}
+#now-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.8rem;
+  letter-spacing: 2px;
+  color: var(--text);
+}
+#now-year { color: var(--muted); font-size: .9rem; margin-top: 2px; }
+
+/* Pick button */
+.btn-pick {
+  margin-top: 28px;
+  background: linear-gradient(135deg, var(--accent2), var(--accent));
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 18px 52px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: opacity .2s, transform .15s, box-shadow .2s;
+  box-shadow: 0 0 30px rgba(0,200,255,.2);
+}
+.btn-pick:hover { opacity: .88; transform: scale(1.04); box-shadow: 0 0 50px rgba(0,200,255,.35); }
+.btn-pick:active { transform: scale(.98); }
+.btn-pick:disabled { opacity: .4; cursor: not-allowed; }
+
+/* ── Winner overlay ──────────────────────────────────────────────────────── */
+.winner-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.82);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  animation: fadeIn .3s ease;
+}
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.winner-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  padding: 36px;
+  max-width: 360px;
+  width: 88%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  animation: popIn .5s cubic-bezier(.34,1.56,.64,1);
+  box-shadow: 0 0 80px rgba(0,200,255,.15);
+}
+
+@keyframes popIn {
+  from { opacity: 0; transform: scale(.4) rotate(-8deg); }
+  to   { opacity: 1; transform: scale(1)  rotate(0deg); }
+}
+
+.winner-card img {
+  width: 180px;
+  height: 270px;
+  object-fit: cover;
+  border-radius: var(--radius);
+  box-shadow: 0 16px 48px rgba(0,0,0,.6);
+  animation: winnerGlow 2s ease-in-out infinite alternate;
+}
+
+@keyframes winnerGlow {
+  from { box-shadow: 0 0 20px rgba(0,200,255,.3), 0 16px 48px rgba(0,0,0,.6); }
+  to   { box-shadow: 0 0 50px rgba(123,47,255,.6), 0 16px 60px rgba(0,0,0,.7); }
+}
+
+.winner-card h2 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 2rem;
+  letter-spacing: 2px;
+  text-align: center;
+  color: var(--accent);
+}
+.winner-card p { color: var(--muted); font-size: .9rem; }
+.winner-card .btn-primary { margin-top: 6px; }
+
+/* Spin animation for the pick button while rolling */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinning { animation: spin .5s linear; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
